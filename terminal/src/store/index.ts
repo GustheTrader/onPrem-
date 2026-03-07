@@ -233,7 +233,6 @@ export const useStore = create<TerminalState>((set, get) => ({
           newProbHistory[m.key] = merged
         }
         const { prob_history: _ph, ...rest } = m as any
-        current Markets: updatedMarkets,
         return rest
       })
       newState.markets = updatedMarkets
