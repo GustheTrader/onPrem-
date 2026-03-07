@@ -1,0 +1,92 @@
+# config.toml — EdgeCopy + Polymarket Terminal configuration
+# All monetary values are in USD.  Probabilities are 0–1.
+# Override any key via environment variable: EDGECOPY_<SECTION>_<KEY>
+
+[polymarket]
+host          = "https://clob.polymarket.com"
+chain_id      = 137           # 137 = Polygon mainnet | 80002 = Amoy testnet
+dry_run       = false         # IMPORTANT: set false to trade live
+
+# Credentials — prefer env vars over storing here
+# api_key        = ""
+# api_secret     = ""
+# api_passphrase = ""
+# private_key    = ""         # 0x-prefixed EOA private key
+
+[assets]
+enabled       = ["BTC", "ETH", "SOL", "XRP"]
+primary       = "BTC"         # most liquid, default for new setups
+
+[risk]
+initial_capital       = 10_000.0   # USD starting balance for sizing calculations
+max_daily_trades      = 20         # hard block after this many trades per day
+max_concurrent        = 3          # max open positions at once
+daily_loss_limit_pct  = 0.03       # 3% — auto-pause if daily P&L falls below this
+max_position_size     = 500.0      # single order cap (USD)
+min_position_size     = 10.0       # don't bother below this
+kelly_fraction        = 0.25       # quarter-Kelly for conservative sizing
+daily_vol_budget      = 0.03       # 3% daily volatility budget
+slippage_guard_bps    = 3.0        # abort order if fill deviates more than 3 bps
+fee_rate              = 0.02       # Polymarket platform fee (2%)
+
+[risk.regime_sizing]
+low_multiplier    = 1.0            # normal size in LOW vol
+medium_multiplier = 1.0            # normal size in MEDIUM vol
+high_multiplier   = 0.5            # cut to 50% in HIGH vol
+
+[features]
+ema_period       = 20
+atr_period       = 14
+atr_mult         = 2.5             # Keltner Channel multiplier
+regime_lookback  = 100             # bars for ATR percentile calculation
+ofi_lookback     = 20              # bars for OFI z-score normalisation
+momentum_bars    = 5               # bars for 5-min momentum calculation
+
+[models]
+# Enable/disable individual signal models
+kc_reversion      = true
+flow_toxicity     = true
+low_vol_accum     = true
+high_vol_momentum = true
+
+# Minimum signal strength to fire an order (0–3)
+min_strength = 0.5
+
+[partial_exit]
+enabled              = true
+first_exit_multiple  = 2.0         # sell first half when price hits 2× entry
+first_exit_fraction  = 0.5         # sell 50% of position at first exit
+
+[copy_trading]
+enabled              = true
+sizing_mode          = "proportional"  # "proportional" | "kelly" | "fixed"
+fixed_size_usd       = 100.0
+kelly_fraction       = 0.25
+max_copy_size        = 500.0
+regime_reduce        = true            # cut size 50% in HIGH vol regime
+latency_target_ms    = 2000            # target copy latency (2 seconds)
+min_master_win_rate  = 0.45            # auto-pause master below this
+master_poll_secs     = 5               # seconds between master wallet polls
+
+[copy_trading.leaderboard]
+enabled              = true
+window_days          = 30
+min_trades           = 20
+rank_by              = "sharpe"        # "sharpe" | "win_rate" | "profit_factor"
+max_masters          = 5              # max simultaneous masters from leaderboard
+
+[storage]
+db_path          = "data/journal.db"
+export_dir       = "data/exports"
+
+[logging]
+level            = "INFO"             # DEBUG | INFO | WARNING | ERROR
+log_file         = "logs/edgecopy.log"
+rotate_mb        = 10
+backup_count     = 5
+
+[terminal]
+theme            = "dark"             # "dark" | "light"
+default_asset    = "BTC"
+chart_bars       = 100                # number of bars shown on chart
+refresh_ms       = 1000               # UI refresh interval

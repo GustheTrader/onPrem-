@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "edgecopy"
+version = "0.1.0"
+description = "EdgeCopy + Polymarket Terminal — shared library"
+requires-python = ">=3.12"
+dependencies = [
+    "py-clob-client>=0.15",
+    "httpx>=0.27",
+    "tomllib; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shared*", "edgecopy*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
