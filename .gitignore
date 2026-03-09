@@ -6,4 +6,5 @@ __pycache__/
 .claude/
 .env
 check_output.txt
-terminal/backend/check_output.txt
+data/
+logs/
