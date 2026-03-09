@@ -5,3 +5,5 @@ __pycache__/
 *.jpg
 .claude/
 .env
+check_output.txt
+terminal/backend/check_output.txt
