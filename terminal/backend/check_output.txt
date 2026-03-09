@@ -1,1 +1,0 @@
-Supabase check output: Successful connection test.
