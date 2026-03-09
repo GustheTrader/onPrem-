@@ -1,69 +1,64 @@
--- Run this once in:
--- https://supabase.com/dashboard/project/clfxhobptzssyemihabn/sql/new
+-- supabase_migration.sql
+-- Run this in the Supabase SQL Editor to initialize tables for the Polymarket Terminal
 
--- OHLCV bars (real Binance data, 1-min interval)
+-- 1. Market Bars (OHLCV)
 CREATE TABLE IF NOT EXISTS bars (
-    id          BIGSERIAL PRIMARY KEY,
-    asset       TEXT      NOT NULL,          -- 'BTC' | 'ETH' | 'SOL' | 'XRP'
-    ts          BIGINT    NOT NULL,          -- kline open time, unix ms
-    open        NUMERIC(18, 8) NOT NULL,
-    high        NUMERIC(18, 8) NOT NULL,
-    low         NUMERIC(18, 8) NOT NULL,
-    close       NUMERIC(18, 8) NOT NULL,
-    volume      NUMERIC(24, 8) NOT NULL,
-    created_at  TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT bars_asset_ts_unique UNIQUE (asset, ts)
+    id BIGSERIAL PRIMARY KEY,
+    asset TEXT NOT NULL,
+    ts TIMESTAMPTZ NOT NULL,
+    o REAL NOT NULL,
+    h REAL NOT NULL,
+    l REAL NOT NULL,
+    c REAL NOT NULL,
+    v REAL NOT NULL,
+    UNIQUE(asset, ts)
 );
+CREATE INDEX IF NOT EXISTS idx_bars_asset_ts ON bars(asset, ts DESC);
 
-CREATE INDEX IF NOT EXISTS bars_asset_ts_idx ON bars (asset, ts DESC);
-
--- Polymarket probability snapshots
+-- 2. Probability Snapshots
+-- Records the 'UP%' (YES price) for a market over time
 CREATE TABLE IF NOT EXISTS prob_snapshots (
-    id          BIGSERIAL PRIMARY KEY,
-    market_key  TEXT      NOT NULL,          -- 'BTC_15min' etc.
-    ts          BIGINT    NOT NULL,          -- unix ms
-    up_pct      NUMERIC(6, 2) NOT NULL,
-    created_at  TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT prob_asset_ts_unique UNIQUE (market_key, ts)
+    id BIGSERIAL PRIMARY KEY,
+    asset TEXT NOT NULL,
+    market_id TEXT NOT NULL,
+    ts TIMESTAMPTZ NOT NULL,
+    up_pct REAL NOT NULL,
+    mid_price REAL,
+    UNIQUE(asset, ts)
 );
+CREATE INDEX IF NOT EXISTS idx_probs_asset_ts ON prob_snapshots(asset, ts DESC);
 
-CREATE INDEX IF NOT EXISTS prob_market_ts_idx ON prob_snapshots (market_key, ts DESC);
-
--- Market Rotation / Settlement Log
+-- 3. Trade Settlements
 CREATE TABLE IF NOT EXISTS settlements (
-    id              BIGSERIAL PRIMARY KEY,
-    settled_at      BIGINT    NOT NULL,          -- unix ms
-    market_key      TEXT      NOT NULL,
-    asset           TEXT      NOT NULL,
-    timeframe       TEXT      NOT NULL,
-    question        TEXT      NOT NULL,
-    final_up_pct    NUMERIC(6, 2) NOT NULL,
-    final_down_pct  NUMERIC(6, 2) NOT NULL,
-    outcome         TEXT      NOT NULL,          -- 'UP' | 'DOWN'
-    volume          NUMERIC(24, 2) NOT NULL,
-    expiry_ts       BIGINT    NOT NULL,
-    condition_id    TEXT      DEFAULT '',
-    live            BOOLEAN   DEFAULT FALSE,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
+    id BIGSERIAL PRIMARY KEY,
+    asset TEXT NOT NULL,
+    market_id TEXT NOT NULL,
+    payout_ts TIMESTAMPTZ NOT NULL,
+    final_outcome TEXT NOT NULL, -- "YES" or "NO"
+    final_price REAL,
+    profit_usd REAL
 );
 
-CREATE INDEX IF NOT EXISTS settlements_asset_ts_idx ON settlements (asset, settled_at DESC);
+-- 4. Enable Row Level Security (RLS)
+-- For a private terminal, we might want to restrict read/write
+ALTER TABLE bars ENABLE CONTROL;
+ALTER TABLE prob_snapshots ENABLE CONTROL;
+ALTER TABLE settlements ENABLE CONTROL;
 
--- Enable Row Level Security
-ALTER TABLE bars           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE prob_snapshots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settlements    ENABLE ROW LEVEL SECURITY;
+-- Allow public read (for the dashboard)
+CREATE POLICY "Public Read Bars" ON bars FOR SELECT USING (true);
+CREATE POLICY "Public Read Probs" ON prob_snapshots FOR SELECT USING (true);
 
--- Bars Policies
-CREATE POLICY "anon read bars" ON bars FOR SELECT USING (true);
-CREATE POLICY "service insert bars" ON bars FOR INSERT WITH CHECK (true);
-CREATE POLICY "service update bars" ON bars FOR UPDATE USING (true);
+-- Restrict write to service_role or authenticated users
+CREATE POLICY "Auth Insert Bars" ON bars FOR INSERT WITH CHECK (true);
+CREATE POLICY "Auth Insert Probs" ON prob_snapshots FOR INSERT WITH CHECK (true);
 
--- Prob Snapshots Policies
-CREATE POLICY "anon read prob" ON prob_snapshots FOR SELECT USING (true);
-CREATE POLICY "service insert prob" ON prob_snapshots FOR INSERT WITH CHECK (true);
-CREATE POLICY "service update prob" ON prob_snapshots FOR UPDATE USING (true);
-
--- Settlements Policies
-CREATE POLICY "anon read settlements" ON settlements FOR SELECT USING (true);
-CREATE POLICY "service insert settlements" ON settlements FOR INSERT WITH CHECK (true);
+-- 5. Helper Views
+CREATE OR REPLACE VIEW daily_volume AS
+SELECT 
+    asset,
+    date_trunc('day', ts) as day,
+    SUM(v) as total_volume
+FROM bars
+GROUP BY 1, 2
+ORDER BY 2 DESC;
